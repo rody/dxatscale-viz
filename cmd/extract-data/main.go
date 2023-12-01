@@ -164,8 +164,7 @@ func run(repoPath string, domains map[string]string, out io.Writer) error {
 		index++
 	}
 
-	fmt.Fprint(out, "const dataJson = ")
-	return json.NewEncoder(out).Encode(pp)
+	return render(out, pp)
 }
 
 func loadDomains(path string) (map[string]string, error) {

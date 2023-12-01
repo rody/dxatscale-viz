@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Flexbl - Package evolution</title>
+  </head>
+  <body>
+    <header>
+    <button id="startButton" onClick="startDraw()">Start</button>
+    <button id="pauseButton" onClick="pauseDraw()">Pause</button>
+    </header>
+    <div id="container"></div>
+    <div id="container3"></div>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+    const dataJson = {{.Data}}
+    </script>
+    <script>
+    {{.Viz}}
+    </script>
+  </body>
+</html>
