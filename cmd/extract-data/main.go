@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -13,7 +15,30 @@ import (
 )
 
 const (
-	repoPath = "path/to/repo"
+	repoPath = "/Users/rodolphe.blancho/workspaces/seek/sfdc-core"
+	usage    = `Usage:
+    flxblviz [--repository REPO] [--output OUTPUT] [--domains DOMAINS]
+Options
+    -r, --repository REPO  Path to the git repository containing the project
+    -o, --output OUTPUT    Path to the outputfile
+    -d, --domains DOMAINS  Path to the domains.json file
+    --help                 Display this message
+
+REPO defaults to the current directory, and OUTPUT defaults to standard output.
+If OUTPUT exists, it will be overwritten.
+
+DOMAINS is the path to a json file containing mapping between the packages
+and their domain. The json file must contain only one object whose keys are the
+package names and a string value representing the domain name.
+
+    {
+        "my-package": "domain1",
+        "another-package": "my-other-domain"
+    }
+
+Example:
+    $ flxblviz -o index.html
+    $ flxblvix -r path/to/repo`
 )
 
 type sfdxProject struct {
@@ -30,17 +55,73 @@ type packageDirectory struct {
 }
 
 func main() {
-	if err := run(); err != nil {
+	var (
+		repositoryFlag string
+		outputFlag     string
+		domainsFlag    string
+		helpFlag       bool
+	)
+
+	flag.Usage = func() { fmt.Fprintf(os.Stderr, "%s\n", usage) }
+	flag.StringVar(&repositoryFlag, "repository", "", "Path to the git repository")
+	flag.StringVar(&repositoryFlag, "r", "", "Path to the git repository")
+	flag.StringVar(&outputFlag, "output", "", "output filename")
+	flag.StringVar(&outputFlag, "o", "", "output filename")
+	flag.StringVar(&domainsFlag, "domains", "", "domains filename")
+	flag.StringVar(&domainsFlag, "d", "", "domains filename")
+	flag.BoolVar(&helpFlag, "help", false, "Print help message")
+	flag.Parse()
+
+	if helpFlag {
+		flag.Usage()
+		return
+	}
+
+	repository := repositoryFlag
+	if repository == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			errorf("could not get the current working directory: %s", err)
+			os.Exit(1)
+		}
+		repository = cwd
+	}
+
+	var domains map[string]string
+	if domainsFlag == "" {
+		domains = make(map[string]string)
+	} else {
+		data, err := loadDomains(domainsFlag)
+		if err != nil {
+			errorf("could not read the domains file: %s", err)
+			os.Exit(1)
+		}
+		domains = data
+	}
+
+	var out io.Writer
+	if outputFlag == "" {
+		out = os.Stdout
+	} else {
+		f, err := os.Create(outputFlag)
+		if err != nil {
+			errorf("could not open output file: %s", err)
+			os.Exit(1)
+		}
+		defer f.Close()
+		out = f
+	}
+
+	if err := run(repository, domains, out); err != nil {
 		log.Fatalf("%s", err)
 	}
 }
 
-func run() error {
-	domains, err := loadDomains("../../domain.json")
-	if err != nil {
-		return fmt.Errorf("could not load domains: %s", err)
-	}
+func errorf(format string, v ...interface{}) {
+	fmt.Fprintf(os.Stderr, "flxblviz: "+format, v)
+}
 
+func run(repoPath string, domains map[string]string, out io.Writer) error {
 	iter, err := getLogIterator(repoPath)
 	if err != nil {
 		return err
@@ -52,10 +133,6 @@ func run() error {
 	index := 0
 
 	for {
-		if index > 6000 {
-			break
-		}
-
 		commit, err := iter.Next()
 		if err != nil {
 			break
@@ -87,8 +164,8 @@ func run() error {
 		index++
 	}
 
-	fmt.Fprint(os.Stdout, "const dataJson = ")
-	return json.NewEncoder(os.Stdout).Encode(pp)
+	fmt.Fprint(out, "const dataJson = ")
+	return json.NewEncoder(out).Encode(pp)
 }
 
 func loadDomains(path string) (map[string]string, error) {
@@ -134,7 +211,7 @@ func countFilesInPath(files []string, path string) int {
 	return count
 }
 
-func parsefdxProjectJSON(f *object.File) ([]packageDirectory, error) {
+func parseSfdxProjectJSON(f *object.File) ([]packageDirectory, error) {
 	r, err := f.Reader()
 	if err != nil {
 		return nil, fmt.Errorf("could not open file: %s", err)
@@ -184,5 +261,5 @@ func getInfo(c *object.Commit) ([]packageDirectory, error) {
 		return nil, err
 	}
 
-	return parsefdxProjectJSON(f)
+	return parseSfdxProjectJSON(f)
 }
