@@ -15,7 +15,6 @@ import (
 )
 
 const (
-	repoPath = "/Users/rodolphe.blancho/workspaces/seek/sfdc-core"
 	usage    = `Usage:
     flxblviz [--repository REPO] [--output OUTPUT] [--domains DOMAINS]
 Options
